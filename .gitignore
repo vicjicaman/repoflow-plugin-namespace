@@ -6,6 +6,7 @@
 **/service
 **/__generated__
 **/logs
+**/tmp
 
 # misc
 .env.local
