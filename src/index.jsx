@@ -9,7 +9,7 @@ import {configure} from './configure';
 
 (async () => {
 
-  await Plugin.run("service", {
+  await Plugin.run("namespace", {
     dependencies: {
       list: Dependencies.list,
       sync: Dependencies.sync
