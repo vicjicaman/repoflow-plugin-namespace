@@ -1,7 +1,12 @@
 import fs from 'fs';
 import _ from 'lodash';
 import path from 'path';
-import {Operation, IO, Config, JSON} from '@nebulario/core-plugin-request';
+import {
+  Operation,
+  IO,
+  JSON
+} from '@nebulario/core-plugin-request';
+import * as Config from '@nebulario/core-config';
 
 export const list = async ({
   module: {
@@ -15,7 +20,10 @@ export const list = async ({
     }
   }
 }, cxt) => {
-  const {pluginid} = cxt;
+  const {
+    pluginid
+  } = cxt;
+
   return Config.dependencies(folder);
 }
 
