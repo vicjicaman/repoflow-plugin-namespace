@@ -1,7 +1,12 @@
 import fs from 'fs';
 import _ from 'lodash';
 import path from 'path';
-import {Operation, IO, Config, JSON} from '@nebulario/core-plugin-request';
+import {
+  Operation,
+  IO
+} from '@nebulario/core-plugin-request';
+import * as Config from '@nebulario/core-config';
+import * as JsonUtils from '@nebulario/core-json'
 
 export const list = async ({
   module: {
@@ -15,8 +20,37 @@ export const list = async ({
     }
   }
 }, cxt) => {
-  const {pluginid} = cxt;
-  return Config.dependencies(folder);
+
+
+  //const ingress = JsonUtils.load(folder + "/ingress.yaml", true);
+
+  const deps = []; /*ingress.spec.rules.reduce((res, {
+    host,
+    http: {
+      paths
+    }
+  }, hi) => {
+
+    const pathdeps = paths.map(({
+      path,
+      backend: {
+        serviceName
+      }
+    }, pi) => ({
+      dependencyid: 'service|ingress.yaml|spec.rules[' + hi + '].http.paths[' + pi + '].' + serviceName,
+      kind: "service",
+      filename: "ingress.yaml",
+      path: 'spec.rules[' + hi + '].http.paths[' + pi + '].' + serviceName,
+      fullname: serviceName,
+      version: "-"
+    }))
+
+
+    return [...res, ...pathdeps]
+
+  }, []);*/
+
+  return [...deps, ...Config.dependencies(folder)];
 }
 
 export const sync = async ({
@@ -38,7 +72,7 @@ export const sync = async ({
 }, cxt) => {
 
   if (version) {
-    JSON.sync(folder, {
+    JsonUtils.sync(folder, {
       filename,
       path,
       version
