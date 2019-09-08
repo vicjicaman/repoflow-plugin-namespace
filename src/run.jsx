@@ -32,6 +32,10 @@ const modify = (folder, compFile, func) => {
 
 export const start = (params, cxt) => {
 
+  IO.sendEvent("out", {
+    data: JSON.stringify(params, null, 2)
+  }, cxt);
+
   const {
     performer,
     performer: {
@@ -56,10 +60,6 @@ export const start = (params, cxt) => {
     }
   } = params;
 
-  if (type !== "instanced") {
-    throw new Error("PERFORMER_NOT_INSTANCED");
-  }
-
 
   IO.sendEvent("out", {
     data: "Mounting instance... " + instanceFolder
@@ -83,11 +83,11 @@ export const start = (params, cxt) => {
   });
 
   mmot.promise.then(() => {
-    IO.sendEvent("error", {
+    IO.sendEvent("warning", {
       data: "Mounted"
     }, cxt);
   }).catch((err) => {
-    IO.sendEvent("error", {
+    IO.sendEvent("warning", {
       data: err.toString()
     }, cxt);
   });
