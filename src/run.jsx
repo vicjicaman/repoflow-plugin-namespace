@@ -1,16 +1,9 @@
-import _ from 'lodash'
-import fs from 'fs-extra'
-import path from 'path'
-import YAML from 'yamljs';
-import {
-  spawn,
-  wait,
-  exec
-} from '@nebulario/core-process';
-import {
-  IO
-} from '@nebulario/core-plugin-request';
-
+import _ from "lodash";
+import fs from "fs-extra";
+import path from "path";
+import YAML from "yamljs";
+import { spawn, wait, exec } from "@nebulario/core-process";
+import { IO } from "@nebulario/core-plugin-request";
 
 const modify = (folder, compFile, func) => {
   const inputPath = path.join(folder, "dist");
@@ -28,13 +21,16 @@ const modify = (folder, compFile, func) => {
   const mod = func(content);
 
   fs.writeFileSync(destFile, YAML.stringify(mod, 10, 2), "utf8");
-}
+};
 
 export const start = (params, cxt) => {
-
-  IO.sendEvent("out", {
-    data: JSON.stringify(params, null, 2)
-  }, cxt);
+  IO.sendEvent(
+    "out",
+    {
+      data: JSON.stringify(params, null, 2)
+    },
+    cxt
+  );
 
   const {
     performer,
@@ -42,67 +38,114 @@ export const start = (params, cxt) => {
       type,
       code: {
         paths: {
-          absolute: {
-            folder
-          }
+          absolute: { folder }
         }
       }
     },
-    feature: {
-      featureid
-    },
+    feature: { featureid },
     instance: {
+      instanceid,
       paths: {
-        absolute: {
-          folder: instanceFolder
-        }
+        absolute: { folder: instanceFolder }
       }
-    }
+    },
+    plugins
   } = params;
 
-
-  IO.sendEvent("out", {
-    data: "Mounting instance... " + instanceFolder
-  }, cxt);
-
-  const mmot = spawn("minikube", ["mount", instanceFolder + ':/instance'], {
-    onOutput: async function({
-      data
-    }) {
-      IO.sendEvent("out", {
-        data
-      }, cxt);
+  IO.sendEvent(
+    "out",
+    {
+      data: "Mounting instance... " + instanceFolder
     },
-    onError: async ({
-      data
-    }) => {
-      IO.sendEvent("error", {
-        data
-      }, cxt);
+    cxt
+  );
+
+  const mmot = spawn("minikube", ["mount", instanceFolder + ":/instance"], {
+    onOutput: async function({ data }) {
+      IO.sendEvent(
+        "out",
+        {
+          data
+        },
+        cxt
+      );
+    },
+    onError: async ({ data }) => {
+      IO.sendEvent(
+        "error",
+        {
+          data
+        },
+        cxt
+      );
     }
   });
 
-  mmot.promise.then(() => {
-    IO.sendEvent("warning", {
-      data: "Mounted"
-    }, cxt);
-  }).catch((err) => {
-    IO.sendEvent("warning", {
-      data: err.toString()
-    }, cxt);
-  });
-
+  mmot.promise
+    .then(() => {
+      IO.sendEvent(
+        "warning",
+        {
+          data: "Mounted"
+        },
+        cxt
+      );
+    })
+    .catch(err => {
+      IO.sendEvent(
+        "warning",
+        {
+          data: err.toString()
+        },
+        cxt
+      );
+    });
 
   const watcher = async (operation, cxt) => {
+    const { operationid } = operation;
 
-    const {
-      operationid
-    } = operation;
+    for (const plugin of plugins) {
+      const { pluginid, home } = plugin;
+      if (pluginid.startsWith("agent:")) {
+        const [agent, type] = pluginid.split(":");
 
-    IO.sendEvent("out", {
-      data: "Setting namespace config..."
-    }, cxt);
+        const targetFolder = "/home/docker/agent/" + instanceid + "/" + type;
+        const target = "docker@$(minikube ip)";
+        const copyCmd =
+          "ssh -oStrictHostKeyChecking=no -i $(minikube ssh-key) " +
+          target +
+          '  "rm -R ' +
+          targetFolder +
+          ";mkdir -p " +
+          targetFolder +
+          '" && scp -pr -oStrictHostKeyChecking=no  -i $(minikube ssh-key) ' +
+          home +
+          "/* " +
+          target +
+          ":" +
+          targetFolder;
 
+        IO.sendEvent(
+          "info",
+          {
+            data: "Initialize container agent... " + type
+          },
+          cxt
+        );
+
+        const nsout = await exec([copyCmd], {}, {}, cxt);
+
+        IO.sendOutput(nsout, cxt);
+      }
+    }
+
+    IO.sendEvent(
+      "out",
+      {
+        data: "Setting namespace config..."
+      },
+      cxt
+    );
 
     const namespacePath = path.join(folder, "dist", "namespace.yaml");
     const namespaceTmpPath = path.join(folder, "tmp", "namespace.yaml");
@@ -112,15 +155,28 @@ export const start = (params, cxt) => {
       return content;
     });
 
-    const nsout = await exec(["kubectl apply -f " + namespaceTmpPath], {}, {}, cxt);
+    const nsout = await exec(
+      ["kubectl apply -f " + namespaceTmpPath],
+      {},
+      {},
+      cxt
+    );
 
-    IO.sendEvent("out", {
-      data: nsout.stdout
-    }, cxt);
+    IO.sendEvent(
+      "out",
+      {
+        data: nsout.stdout
+      },
+      cxt
+    );
 
-    IO.sendEvent("out", {
-      data: "Setting ingress config..."
-    }, cxt);
+    IO.sendEvent(
+      "out",
+      {
+        data: "Setting ingress config..."
+      },
+      cxt
+    );
 
     const ingressPath = path.join(folder, "dist", "ingress.yaml");
     const ingressTmpPath = path.join(folder, "tmp", "ingress.yaml");
@@ -130,37 +186,44 @@ export const start = (params, cxt) => {
       content.spec.rules = content.spec.rules.map(rule => {
         rule.host = featureid + "-" + rule.host;
         return rule;
-      })
+      });
       return content;
     });
 
-    const igosut = await exec(["kubectl apply -f " + ingressTmpPath], {}, {}, cxt);
+    const igosut = await exec(
+      ["kubectl apply -f " + ingressTmpPath],
+      {},
+      {},
+      cxt
+    );
 
-    IO.sendEvent("out", {
-      data: igosut.stdout
-    }, cxt);
+    IO.sendEvent(
+      "out",
+      {
+        data: igosut.stdout
+      },
+      cxt
+    );
 
     while (operation.status !== "stopping") {
       await wait(2500);
     }
 
-    IO.sendEvent("stopped", {
-      operationid,
-      data: "Stopping namespace config..."
-    }, cxt);
-  }
-
+    IO.sendEvent(
+      "stopped",
+      {
+        operationid,
+        data: "Stopping namespace config..."
+      },
+      cxt
+    );
+  };
 
   return {
     promise: watcher,
     process: null
   };
-}
-
-
-
-
-
+};
 
 /*
 
