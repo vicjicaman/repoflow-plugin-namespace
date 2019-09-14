@@ -3,6 +3,7 @@ import fs from "fs-extra";
 import path from "path";
 import YAML from "yamljs";
 import { spawn, wait, exec } from "@nebulario/core-process";
+import { execSync } from "child_process";
 import { IO } from "@nebulario/core-plugin-request";
 
 const modify = (folder, compFile, func) => {
@@ -33,6 +34,8 @@ export const start = (params, cxt) => {
   );
 
   const {
+    init,
+    performers,
     performer,
     performer: {
       type,
@@ -42,7 +45,6 @@ export const start = (params, cxt) => {
         }
       }
     },
-    feature: { featureid },
     instance: {
       instanceid,
       paths: {
@@ -52,15 +54,136 @@ export const start = (params, cxt) => {
     plugins
   } = params;
 
+  const watcher = async (operation, cxt) => {
+    const { operationid } = operation;
+
+    IO.sendEvent(
+      "out",
+      {
+        data: "Setting namespace config..."
+      },
+      cxt
+    );
+
+    const namespacePath = path.join(folder, "dist", "namespace.yaml");
+    const namespaceTmpPath = path.join(folder, "tmp", "namespace.yaml");
+
+    modify(folder, "namespace.yaml", content => {
+      content.metadata.name = instanceid + "-" + content.metadata.name;
+      return content;
+    });
+
+    const nsout = await exec(
+      ["kubectl apply -f " + namespaceTmpPath],
+      {},
+      {},
+      cxt
+    );
+
+    IO.sendEvent(
+      "out",
+      {
+        data: nsout.stdout
+      },
+      cxt
+    );
+
+    IO.sendEvent(
+      "out",
+      {
+        data: "Setting ingress config..."
+      },
+      cxt
+    );
+
+    const ingressPath = path.join(folder, "dist", "ingress.yaml");
+    const ingressTmpPath = path.join(folder, "tmp", "ingress.yaml");
+
+    modify(folder, "ingress.yaml", content => {
+      content.metadata.namespace = instanceid + "-" + content.metadata.namespace;
+      content.spec.rules = content.spec.rules.map(rule => {
+        rule.host = instanceid + "-" + rule.host;
+        return rule;
+      });
+      return content;
+    });
+
+    const igosut = await exec(
+      ["kubectl apply -f " + ingressTmpPath],
+      {},
+      {},
+      cxt
+    );
+
+    IO.sendEvent(
+      "out",
+      {
+        data: igosut.stdout
+      },
+      cxt
+    );
+
+    while (operation.status !== "stopping") {
+      await wait(2500);
+    }
+
+    IO.sendEvent(
+      "stopped",
+      {
+        operationid,
+        data: "Stopping namespace config..."
+      },
+      cxt
+    );
+  };
+
+  if (init) {
+
+    for (const plugin of plugins) {
+      const { pluginid, home } = plugin;
+      if (pluginid.startsWith("agent:")) {
+        const [agent, type] = pluginid.split(":");
+
+        const targetFolder = "/home/docker/agent/" + instanceid + "/" + type;
+        const target = "docker@$(minikube ip)";
+        const copyCmd =
+          "ssh -oStrictHostKeyChecking=no -i $(minikube ssh-key) " +
+          target +
+          '  "rm -Rf ' +
+          targetFolder +
+          ";mkdir -p " +
+          targetFolder +
+          '" && scp -pr -oStrictHostKeyChecking=no  -i $(minikube ssh-key) ' +
+          home +
+          "/* " +
+          target +
+          ":" +
+          targetFolder;
+
+        IO.sendEvent(
+          "info",
+          {
+            data: "Initialize container agent... " + type
+          },
+          cxt
+        );
+
+        const nsout = execSync(copyCmd);
+
+        IO.sendOutput(nsout, cxt);
+      }
+    }
+  }
+
   IO.sendEvent(
-    "out",
+    "info",
     {
       data: "Mounting instance... " + instanceFolder
     },
     cxt
   );
 
-  const mmot = spawn("minikube", ["mount", instanceFolder + ":/instance"], {
+  /*const mmot = spawn("minikube", ["mount", instanceFolder + ":/instance"], {
     onOutput: async function({ data }) {
       IO.sendEvent(
         "out",
@@ -100,125 +223,7 @@ export const start = (params, cxt) => {
         cxt
       );
     });
-
-  const watcher = async (operation, cxt) => {
-    const { operationid } = operation;
-
-    for (const plugin of plugins) {
-      const { pluginid, home } = plugin;
-      if (pluginid.startsWith("agent:")) {
-        const [agent, type] = pluginid.split(":");
-
-        const targetFolder = "/home/docker/agent/" + instanceid + "/" + type;
-        const target = "docker@$(minikube ip)";
-        const copyCmd =
-          "ssh -oStrictHostKeyChecking=no -i $(minikube ssh-key) " +
-          target +
-          '  "rm -R ' +
-          targetFolder +
-          ";mkdir -p " +
-          targetFolder +
-          '" && scp -pr -oStrictHostKeyChecking=no  -i $(minikube ssh-key) ' +
-          home +
-          "/* " +
-          target +
-          ":" +
-          targetFolder;
-
-        IO.sendEvent(
-          "info",
-          {
-            data: "Initialize container agent... " + type
-          },
-          cxt
-        );
-
-        const nsout = await exec([copyCmd], {}, {}, cxt);
-
-        IO.sendOutput(nsout, cxt);
-      }
-    }
-
-    IO.sendEvent(
-      "out",
-      {
-        data: "Setting namespace config..."
-      },
-      cxt
-    );
-
-    const namespacePath = path.join(folder, "dist", "namespace.yaml");
-    const namespaceTmpPath = path.join(folder, "tmp", "namespace.yaml");
-
-    modify(folder, "namespace.yaml", content => {
-      content.metadata.name = featureid + "-" + content.metadata.name;
-      return content;
-    });
-
-    const nsout = await exec(
-      ["kubectl apply -f " + namespaceTmpPath],
-      {},
-      {},
-      cxt
-    );
-
-    IO.sendEvent(
-      "out",
-      {
-        data: nsout.stdout
-      },
-      cxt
-    );
-
-    IO.sendEvent(
-      "out",
-      {
-        data: "Setting ingress config..."
-      },
-      cxt
-    );
-
-    const ingressPath = path.join(folder, "dist", "ingress.yaml");
-    const ingressTmpPath = path.join(folder, "tmp", "ingress.yaml");
-
-    modify(folder, "ingress.yaml", content => {
-      content.metadata.namespace = featureid + "-" + content.metadata.namespace;
-      content.spec.rules = content.spec.rules.map(rule => {
-        rule.host = featureid + "-" + rule.host;
-        return rule;
-      });
-      return content;
-    });
-
-    const igosut = await exec(
-      ["kubectl apply -f " + ingressTmpPath],
-      {},
-      {},
-      cxt
-    );
-
-    IO.sendEvent(
-      "out",
-      {
-        data: igosut.stdout
-      },
-      cxt
-    );
-
-    while (operation.status !== "stopping") {
-      await wait(2500);
-    }
-
-    IO.sendEvent(
-      "stopped",
-      {
-        operationid,
-        data: "Stopping namespace config..."
-      },
-      cxt
-    );
-  };
-
+*/
   return {
     promise: watcher,
     process: null
