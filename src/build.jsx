@@ -82,7 +82,7 @@ export const init = async (params, cxt) => {
         data: "Performing dependent found " + depSrv.moduleid
       }, cxt);
 
-      if (depSrvPerformer.linked.includes("build")) {
+      if (depSrvPerformer.linked) {
 
         IO.sendEvent("info", {
           data: " - Linked " + depSrv.moduleid
