@@ -45,7 +45,11 @@ export const start = (params, cxt) => {
           );
 
           const targetFolder = "/home/docker/agent/" + instanceid + "/" + type;
-          await Cluster.Minikube.copyToHost(home, targetFolder, cxt);
+          await Cluster.Minikube.copyToHost(
+            { path: home, type: "folder" },
+            targetFolder,
+            cxt
+          );
         }
       }
     }
@@ -71,7 +75,7 @@ export const start = (params, cxt) => {
       }
     );
 
-    const nsout = await Cluster.Control.apply(namespaceDevFile);
+    const nsout = await Cluster.Control.apply(namespaceDevFile, cxt);
     IO.sendOutput(nsout, cxt);
 
     const ingressDevFile = await Cluster.Dev.transform(
@@ -89,7 +93,7 @@ export const start = (params, cxt) => {
       }
     );
 
-    const igsout = await Cluster.Control.apply(ingressDevFile);
+    const igsout = await Cluster.Control.apply(ingressDevFile, cxt);
     IO.sendOutput(igsout, cxt);
 
     IO.sendEvent(
