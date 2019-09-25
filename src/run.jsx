@@ -30,6 +30,8 @@ export const start = (params, cxt) => {
   } = params;
 
   const startOp = async (operation, cxt) => {
+
+
     if (command === "init" || command.indexOf("full") > -1) {
       for (const plugin of plugins) {
         const { pluginid, home } = plugin;
