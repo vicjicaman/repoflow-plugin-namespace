@@ -1,12 +1,11 @@
-import {IO, Plugin} from '@nebulario/core-plugin-request';
+import { IO, Plugin } from "@nebulario/core-plugin-request";
 
-import * as Dependencies from './dependencies';
-import * as Build from './build';
-import * as Run from './run';
-import {publish} from './publish';
+import * as Dependencies from "./dependencies";
+import * as Build from "./build";
+import * as Run from "./run";
+import { publish } from "./publish";
 
 (async () => {
-
   await Plugin.run("namespace", {
     dependencies: {
       list: Dependencies.list,
@@ -22,8 +21,7 @@ import {publish} from './publish';
     },
     publish
   });
-
 })().catch(e => {
-  IO.sendEvent("plugin.fatal", {data: e.message});
+  IO.sendEvent("plugin.fatal", { data: e.message });
   throw e;
 });
