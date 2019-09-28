@@ -12,6 +12,7 @@ import { publish } from "./publish";
       sync: Dependencies.sync
     },
     run: {
+      init: Run.init,
       start: Run.start
     },
     build: {

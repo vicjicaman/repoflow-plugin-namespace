@@ -12,6 +12,26 @@ import {
 import * as Config from "@nebulario/core-config";
 import * as Cluster from "@nebulario/core-cluster";
 import * as JsonUtils from "@nebulario/core-json";
+import { isFile, getFiles } from "./utils";
+
+const configFolder = (base, src, dest, values, cxt) => {
+  const srcBase = path.join(src, base);
+  const destBase = path.join(dest, base);
+  const list = getFiles(srcBase, "yaml");
+
+  for (const vPath of list) {
+    const file = path.basename(vPath);
+    IO.sendEvent(
+      "info",
+      {
+        data: "Configure " + base + " - " + file
+      },
+      cxt
+    );
+
+    Cluster.Config.configure(file, srcBase, destBase, values);
+  }
+};
 
 export const clear = async (params, cxt) => {
   const {
@@ -163,9 +183,21 @@ const build = (operation, params, cxt) => {
     Cluster.Config.configure("ingress.yaml", src, dest, values);
 
     IO.sendEvent(
-      "done",
+      "out",
       {
         data: "Namespace & ingress generated!"
+      },
+      cxt
+    );
+
+    configFolder("secrets", src, dest, values);
+    configFolder("volumes", src, dest, values);
+    configFolder("storages", src, dest, values);
+
+    IO.sendEvent(
+      "done",
+      {
+        data: "Namespace build!"
       },
       cxt
     );
