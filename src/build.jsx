@@ -70,7 +70,6 @@ export const start = (params, cxt) => {
 
   if (type === "instanced") {
     const startOp = async (operation, cxt) => {
-
       await build(params, cxt);
       /*const watchers = Watcher.multiple(
         ["config.json", "entities/*"],
@@ -111,7 +110,12 @@ const build = async (params, cxt) => {
     Config.build(folder);
     const values = Config.load(folder);
 
-    await Cluster.Tasks.Build.exec(folder, values, {}, cxt);
+    await Cluster.Tasks.Build.exec(
+      folder,
+      { entities: {}, params: { values } },
+      {},
+      cxt
+    );
 
     IO.print("done", "Namespace build!", cxt);
   } catch (e) {
