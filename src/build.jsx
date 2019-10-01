@@ -112,7 +112,22 @@ const build = async (params, cxt) => {
 
     await Cluster.Tasks.Build.exec(
       folder,
-      { entities: {}, params: { values } },
+      {
+        general: {
+          hooks: {
+            error: ({ type, file }, { error }) =>
+              IO.print(
+                "warning",
+                type + " " + file + "  " + error.toString(),
+                cxt
+              ),
+            pre: e => e,
+            post: ({ type, file }) =>
+              IO.print("info", type + " " + file + " configured ", cxt)
+          },
+          params: { values }
+        }
+      },
       {},
       cxt
     );

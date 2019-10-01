@@ -46,6 +46,47 @@ export const init = async (params, cxt) => {
       );
     }
   }
+
+  const res = await Cluster.Tasks.Run.init(
+    folder,
+    {
+      general: {
+        hooks: {
+          error: async ({ type, file }, { error }, cxt) =>
+            IO.print(
+              "warning",
+              type + " " + file + "  " + error.toString(),
+              cxt
+            ),
+          post: async ({ type, file }, { result }, cxt) => {
+            IO.print("out", type + " " + file + "  init!", cxt);
+          }
+        },
+        params: {}
+      }
+    },
+    {},
+    cxt
+  );
+  IO.print("done", "Namespace up to date...", cxt);
+};
+
+export const transform = async (params, cxt) => {
+  const {
+    performers,
+    performer: servicePerf,
+    performer: {
+      code: {
+        paths: {
+          absolute: { folder }
+        }
+      }
+    },
+    instance: { instanceid }
+  } = params;
+
+  const res = await Cluster.Tasks.Run.transform(folder, {}, {}, cxt);
+  IO.print("out", "Namespace up to date...", cxt);
 };
 
 export const start = (params, cxt) => {
@@ -75,24 +116,68 @@ export const start = (params, cxt) => {
 
     const res = await Cluster.Tasks.Run.exec(
       folder,
+
       {
-        handlers: {
-          onError: async ({ type, file }, e, cxt) => {
-            IO.print("warning", type + " " + file + "  " + e.toString(), cxt);
+        general: {
+          hooks: {
+            error: async ({ type, file }, { error }, cxt) =>
+              IO.print(
+                "warning",
+                type + " " + file + "  " + error.toString(),
+                cxt
+              ),
+            post: async ({ type, file }, { result }, cxt) => {
+              IO.print("out", type + " " + file + "  init!", cxt);
+            }
           },
-          onCompleted: async ({ type, file }, res, cxt) => {
-            IO.print("info", type + " " + file + " completed", cxt);
-            IO.print("out", res.stdout, cxt);
-            IO.print("warning", res.strerr, cxt);
-          },
-          entities: {}
+          params: {}
+        },
+        entities: {
+          ingress: {
+            hooks: {
+              post: async ({ file }, params, cxt) => {
+                IO.print("out", "Set local ingress domains", cxt);
+
+                const content = JsonUtils.load(
+                  path.join(params.phase.paths.tmp, file),
+                  true
+                );
+
+                for (const rule of content.spec.rules) {
+                  const { host } = rule;
+
+                  IO.print(
+                    "info",
+                    "Add " + host + " namespace to local /etc/hosts...",
+                    cxt
+                  );
+
+                  await Cluster.Control.exec(
+                    [],
+                    async ([], innerClusterContext, cxt) => {
+                      const line = "127.0.0.1 " + host;
+                      const file = "/etc/hosts";
+
+                      return await innerClusterContext(
+                        `grep -qF -- "${line}" "${file}" || echo "${line}" >> "${file}"`,
+                        {},
+                        cxt
+                      );
+                    },
+                    {},
+                    cxt
+                  );
+                }
+              }
+            }
+          }
         }
       },
       {},
       cxt
     );
 
-    for (const ing of res.entities["ingress"]) {
+    /*for (const ing of res.entities["ingress"]) {
       const {
         file,
         paths: { tmp },
@@ -105,32 +190,8 @@ export const start = (params, cxt) => {
 
       const content = JsonUtils.load(path.join(tmp, file), true);
 
-      for (const rule of content.spec.rules) {
-        const { host } = rule;
 
-        IO.print(
-          "out",
-          "Add " + host + " namespace to local /etc/hosts...",
-          cxt
-        );
-
-        await Cluster.Control.exec(
-          [],
-          async ([], innerClusterContext, cxt) => {
-            const line = "127.0.0.1 " + host;
-            const file = "/etc/hosts";
-
-            return await innerClusterContext(
-              `grep -qF -- "${line}" "${file}" || echo "${line}" >> "${file}"`,
-              {},
-              cxt
-            );
-          },
-          {},
-          cxt
-        );
-      }
-    }
+    }*/
 
     IO.print("done", "Namespace & Ingress up to date...", cxt);
 

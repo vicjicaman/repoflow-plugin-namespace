@@ -1,83 +1,50 @@
-import fs from 'fs';
-import _ from 'lodash';
-import path from 'path';
-import {
-  Operation,
-  IO
-} from '@nebulario/core-plugin-request';
-import * as Config from '@nebulario/core-config';
-import * as JsonUtils from '@nebulario/core-json'
+import fs from "fs";
+import _ from "lodash";
+import path from "path";
+//import YAML from 'yamljs'
+import { Operation, IO } from "@nebulario/core-plugin-request";
+import * as Config from "@nebulario/core-config";
+import * as JsonUtils from "@nebulario/core-json";
+import * as Cluster from "@nebulario/core-cluster";
 
-export const list = async ({
-  module: {
-    fullname,
-    code: {
-      paths: {
-        absolute: {
-          folder
+export const list = async (params, cxt) => {
+  const {
+    module: {
+      fullname,
+      code: {
+        paths: {
+          absolute: { folder }
         }
       }
     }
-  }
-}, cxt) => {
+  } = params;
 
+  const dependencies = await Cluster.Dependencies.list(params, cxt);
 
-  //const ingress = JsonUtils.load(folder + "/ingress.yaml", true);
+  return [...dependencies, ...Config.dependencies(folder)];
+};
 
-  const deps = []; /*ingress.spec.rules.reduce((res, {
-    host,
-    http: {
-      paths
-    }
-  }, hi) => {
-
-    const pathdeps = paths.map(({
-      path,
-      backend: {
-        serviceName
-      }
-    }, pi) => ({
-      dependencyid: 'service|ingress.yaml|spec.rules[' + hi + '].http.paths[' + pi + '].' + serviceName,
-      kind: "service",
-      filename: "ingress.yaml",
-      path: 'spec.rules[' + hi + '].http.paths[' + pi + '].' + serviceName,
-      fullname: serviceName,
-      version: "-"
-    }))
-
-
-    return [...res, ...pathdeps]
-
-  }, []);*/
-
-  return [...deps, ...Config.dependencies(folder)];
-}
-
-export const sync = async ({
-  module: {
-    code: {
-      paths: {
-        absolute: {
-          folder
+export const sync = async (params, cxt) => {
+  const {
+    module: {
+      code: {
+        paths: {
+          absolute: { folder }
         }
       }
-    }
-  },
-  dependency: {
-    kind,
-    filename,
-    path,
-    version
-  }
-}, cxt) => {
+    },
+    dependency: { kind, filename, path, version }
+  } = params;
 
-  if (version) {
+  if (kind === "config") {
     JsonUtils.sync(folder, {
       filename,
       path,
       version
     });
+  } else {
+    await Cluster.Dependencies.sync(params, cxt);
   }
 
   return {};
-}
+};
